@@ -1,12 +1,12 @@
-width: 1440             #图像宽度
-height: 540            #图像高度
+width: 3072             #图像宽度
+height: 2048            #图像高度
 Offset_x: 0             #X方向偏置
-Offset_y: 540             #Y方向偏置
+Offset_y: 0             #Y方向偏置
 
 PixelFormat: 12         #像素格式，12: BayerRG8
 
 FrameRateEnable: true   #使能 
-FrameRate: 30           #帧率
+FrameRate: 10           #帧率
 
 ExposureTime: 2000      #曝光时间
 ExposureAuto: false
@@ -24,6 +24,9 @@ Gamma: 0.7              #伽马因子
 GainAuto: 2             #亮度的固定增益
 
 CalibrateEnable: false
+
+SaturationEnable: false
+Saturation: 128          #饱和度
 
 ResizeEnable: false
 DestinationHeight: 640
