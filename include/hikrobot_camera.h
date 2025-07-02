@@ -16,6 +16,7 @@ namespace camera
 #define MAX_IMAGE_DATA_SIZE (4 * 2048 * 3072)
     //********** frame ************************************/
     extern cv::Mat frame;
+    extern ros::Time frametime;
     //********** frame_empty ******************************/
     extern bool frame_empty;
     //********** mutex ************************************/
@@ -41,7 +42,7 @@ namespace camera
         //********** 恢复默认参数 *************************/
         bool reset();
         //********** 读图1个相机的原始图像 ********************************/
-        void ReadImg(cv::Mat &image);
+        void ReadImg(cv::Mat &image, ros::Time &time);
 
         int get_width();
         int get_height();

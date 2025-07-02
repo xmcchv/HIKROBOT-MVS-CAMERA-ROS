@@ -7,6 +7,7 @@
 namespace camera {
     //********** frame ************************************/
     cv::Mat frame;
+    ros::Time frametime;
     //********** frame_empty ******************************/
     bool frame_empty = 0;
     //********** mutex ************************************/
@@ -143,17 +144,34 @@ namespace camera {
             printf("set parameter error");
         }
 
+        nRet_ = MV_CC_SetEnumValue(handle_, "DecimationHorizontal", 2);
+        if (MV_OK == nRet_)
+        {
+            printf("set DecimationHorizontal OK! value=%f\n", 2.0f);
+        }else
+        {
+            printf("Set DecimationHorizontal Failed! nRet = [%x]\n\n", nRet_);
+        }
+        nRet_ = MV_CC_SetBoolValue(handle_, "AutoSCPD", 1);
+        if (MV_OK == nRet_)
+        {
+            printf("set AutoSCPD OK! value=%f\n", 1.0);
+        }else
+        {
+            printf("Set AutoSCPD Failed! nRet = [%x]\n\n", nRet_);
+        }
+
         //软件触发
         // ********** frame **********/
-        // nRet_ = MV_CC_SetEnumValue(handle_, "TriggerMode", 0);
-        // if (MV_OK == nRet_)
-        // {
-        //     printf("set TriggerMode OK!\n");
-        // }
-        // else
-        // {
-        //     printf("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet_);
-        // }
+        nRet_ = MV_CC_SetEnumValue(handle_, "TriggerMode", 0);
+        if (MV_OK == nRet_)
+        {
+            printf("set TriggerMode OK!\n");
+        }
+        else
+        {
+            printf("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet_);
+        }
         MVCC_ENUMVALUE t = {0};
         //********** frame **********/
 
@@ -249,6 +267,7 @@ namespace camera {
 
     bool Camera::reset()
     {
+        ROS_INFO("========setting camera params============");
         nRet_ = this->set(CAP_PROP_FRAMERATE_ENABLE, frame_rate_enable_)                                || nRet_;
         if(frame_rate_enable_)
             nRet_ = this->set(CAP_PROP_FRAMERATE, frame_rate_)                                          || nRet_;
@@ -287,7 +306,9 @@ namespace camera {
         if (pstMVDevInfo->nTLayerType == MV_GIGE_DEVICE)
         {
             printf("%s %x\n", "nCurrentIp:", pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp);                 //当前IP
-            printf("%s %s\n\n", "chUserDefinedName:", pstMVDevInfo->SpecialInfo.stGigEInfo.chUserDefinedName); //用户定义名
+            printf("%s %s\n", "chUserDefinedName:", pstMVDevInfo->SpecialInfo.stGigEInfo.chUserDefinedName); //用户定义名
+            printf("%s %s\n", "chModelName:", pstMVDevInfo->SpecialInfo.stGigEInfo.chModelName); //相机型号
+            printf("%s %s\n", "chSerialNumber:", pstMVDevInfo->SpecialInfo.stGigEInfo.chSerialNumber); //相机序列号 
         }
         else if (pstMVDevInfo->nTLayerType == MV_USB_DEVICE)
         {
@@ -300,22 +321,23 @@ namespace camera {
         return true;
     }
 
-    void Camera::ReadImg(cv::Mat &image)
+    void Camera::ReadImg(cv::Mat &image, ros::Time &srctime)
     {
 
         pthread_mutex_lock(&mutex);
+        srctime = camera::frametime;
         if (frame_empty)
         {
             image = cv::Mat();
         }
         else
         {
-            if(calibrate_enable_) {
-                this->undistort(camera::frame, image);
-            }
-            else {
+            // if(calibrate_enable_) {
+            //     this->undistort(camera::frame, image);
+            // }
+            // else {
                 image = camera::frame;
-            }
+            // }
             if(resize_enable_) {
                 image_resize(camera::frame, image);
             }
@@ -364,10 +386,11 @@ namespace camera {
             MV_CC_ConvertPixelType(p_handle, &stConvertParam);
             pthread_mutex_lock(&mutex);
             camera::frame = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, m_pBufForSaveImage).clone(); //tmp.clone();
+            camera::frametime = ros::Time::now();
             frame_empty = 0;
             pthread_mutex_unlock(&mutex);
             double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
-            ROS_INFO("Grap one image time: %lf", time);
+            ROS_INFO("Grap one image time: %lf ms", time);
             //*************************************testing img********************************//
             // std::cout << "HK_camera,Time:" << time << "\tFPS:" << 1 / time << std::endl;
             // cv::imshow("HK vision",frame);

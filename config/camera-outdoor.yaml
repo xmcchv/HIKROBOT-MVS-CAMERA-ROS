@@ -26,7 +26,7 @@ SaturationEnable: false
 Saturation: 128          #饱和度
 
 # 使用标定数据作为camera_info
-CalibrateEnable: false
+CalibrateEnable: true
 
 ResizeEnable: false
 DestinationHeight: 640

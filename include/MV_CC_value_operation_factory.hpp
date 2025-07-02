@@ -35,8 +35,8 @@ namespace camera {
         CAP_PROP_IMAGE_COMPRESSION_QUALITY,
 
         CAP_PROP_TRIGGER_MODE,                      //外部触发
-        // CAP_PROP_TRIGGER_SOURCE,                    //触发源
-        // CAP_PROP_LINE_SELECTOR,                     //触发线
+        CAP_PROP_TRIGGER_SOURCE,                    //触发源
+        CAP_PROP_LINE_SELECTOR,                     //触发线
         
         NUM_OF_CAP_PROP
     };
@@ -635,29 +635,29 @@ namespace camera {
             }
     };
 
-    // class MVCCTriggerSource: public MVCCValue {
-    //     public:
-    //         MVCCTriggerSource(void* handle) {
-    //             this->handle_ = handle;
-    //         }
-    //         ~MVCCTriggerSource();
+    class MVCCTriggerSource: public MVCCValue {
+        public:
+            MVCCTriggerSource(void* handle) {
+                this->handle_ = handle;
+            }
+            ~MVCCTriggerSource();
 
-    //         int setValue(float value) {
-    //             return MV_CC_SetTriggerSource(handle_, value);
-    //         }
-    // };
+            int setValue(float value) {
+                return MV_CC_SetTriggerSource(handle_, value);
+            }
+    };
 
-    // class MVCCLineSelector: public MVCCValue {
-    //     public:
-    //         MVboolCCLineSelector(void* handle) {
-    //             this->handle_ = handle;
-    //         }
-    //         ~MVCCLineSelector();
+    class MVCCLineSelector: public MVCCValue {
+        public:
+            MVCCLineSelector(void* handle) {
+                this->handle_ = handle;
+            }
+            ~MVCCLineSelector();
 
-    //         int setValue(float value) {
-    //             return MV_CC_SetEnumValue(handle_, "LineSelector", value);
-    //         }
-    // };
+            int setValue(float value) {
+                return MV_CC_SetEnumValue(handle_, "LineSelector", value);
+            }
+    };
 
     class MVCCImageCompressionMode: public MVCCValue {
         public:
@@ -756,12 +756,12 @@ namespace camera {
                     case CAP_PROP_TRIGGER_MODE:
                         value_operator_ = new MVCCTriggerMode(handle_);
                         break;
-                    // case CAP_PROP_TRIGGER_SOURCE:
-                    //     value_operator_ = new MVCCTriggerSource(handle_);
-                    //     break;
-                    // case CAP_PROP_LINE_SELECTOR:
-                    //     value_operator_ = new MVCCLineSelector(handle_);
-                    //     break;
+                    case CAP_PROP_TRIGGER_SOURCE:
+                        value_operator_ = new MVCCTriggerSource(handle_);
+                        break;
+                    case CAP_PROP_LINE_SELECTOR:
+                        value_operator_ = new MVCCLineSelector(handle_);
+                        break;
                     case CAP_PROP_IMAGE_COMPRESSION_MODE:
                         value_operator_ = new MVCCImageCompressionMode(handle_);
                         break;
@@ -788,10 +788,10 @@ namespace camera {
                 }
                 int ret = value_operator_->setValue(value);
                 if(ret == MV_OK) {
-                    ROS_INFO("Set %s OK! value=%lf\n", CAMERA_PROPERTIES_STRING_VECTOR.at(type_).c_str(), value);
+                    ROS_INFO("Set %s OK! value=%lf", CAMERA_PROPERTIES_STRING_VECTOR.at(type_).c_str(), value);
                 }
                 else {
-                    ROS_WARN("Set %s failed! error code=0x%x\n", CAMERA_PROPERTIES_STRING_VECTOR.at(type_).c_str(), ret);
+                    ROS_WARN("Set %s failed! error code=0x%x", CAMERA_PROPERTIES_STRING_VECTOR.at(type_).c_str(), ret);
                 }
                 return ret;
             }
