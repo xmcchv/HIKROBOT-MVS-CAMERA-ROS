@@ -265,12 +265,13 @@ namespace camera {
         }
         nRet_ = this->set(CAP_PROP_BALANCE_WHITE_AUTO, balance_white_auto_)                             || nRet_;
         nRet_ = this->set(CAP_PROP_BRIGHTNESS, brightness_)                                             || nRet_;
-        nRet_ = this->set(CAP_PROP_GAMMA_ENABLE, gamma_enable_)                                         || nRet_;
-        if(gamma_enable_) {
-            nRet_ = this->set(CAP_PROP_GAMMA_SELECTOR, gamma_selector_)                                 || nRet_;
-            if(gamma_selector_ == 1)
-                nRet_ = this->set(CAP_PROP_GAMMA, gamma_)                                               || nRet_;
-        }
+        // nRet_ = this->set(CAP_PROP_GAMMA_ENABLE, gamma_enable_)                                         || nRet_;
+        // if(gamma_enable_) {
+        //     nRet_ = this->set(CAP_PROP_GAMMA_SELECTOR, gamma_selector_)                                 || nRet_;
+        //     if(gamma_selector_ == 1)
+        //         nRet_ = this->set(CAP_PROP_GAMMA, gamma_)                                               || nRet_;
+        // }
+        nRet_ = this->set(CAP_PROP_GAMMA, gamma_)                                                       || nRet_;
         nRet_ = this->set(CAP_PROP_GAINAUTO, gain_auto_)                                                || nRet_;
         nRet_ = this->set(CAP_PROP_PIXEL_FORMAT, pixel_format_)                                         || nRet_;
         nRet_ = this->set(CAP_PROP_TRIGGER_MODE, trigger_mode_)                                         || nRet_;
