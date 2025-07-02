@@ -11,12 +11,12 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   image_transport
   camera_info_manager
-  dynamic_reconfigure
+  # dynamic_reconfigure
 )
 
-generate_dynamic_reconfigure_options(
-  cfg/camera.cfg
-)
+# generate_dynamic_reconfigure_options(
+#   cfg/camera.cfg
+# )
 
 catkin_package(
   CATKIN_DEPENDS roscpp rospy std_msgs cv_bridge image_transport camera_info_manager
@@ -47,11 +47,11 @@ include_directories(
 
 
 add_executable(${PROJECT_NAME}
-  src/hikrobot_camera.cpp src/main.cpp)
+  src/hikrobot_camera.cpp)
 
-add_dependencies(${PROJECT_NAME}
-  ${PROJECT_NAME}_gencfg
-)
+# add_dependencies(${PROJECT_NAME}
+#   ${PROJECT_NAME}_gencfg
+# )
 
 
  target_link_libraries(${PROJECT_NAME}

@@ -19,6 +19,7 @@ if catkin_make -j2 -DCATKIN_WHITELIST_PACKAGES="hikrobot_camera"; then
         echo "不启动程序..."
     else
         echo "直接运行..."
+        # roslaunch hikrobot_camera hikrobot_camera_indoor.launch
         roslaunch hikrobot_camera hikrobot_camera_indoor_rviz.launch
     fi
 else
