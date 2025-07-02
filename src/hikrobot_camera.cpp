@@ -66,6 +66,8 @@ namespace camera {
             cameraMatrix_.at<double>(0,2) = cx;
             cameraMatrix_.at<double>(1,2) = cy;
             cameraMatrix_.at<double>(2,2) = 1.;
+            // 打印内参
+            std::cout << "cameraMatrix_: " << cameraMatrix_ << std::endl;
 
             node.param("DistCoeffs/k1", k1, 0.);
             node.param("DistCoeffs/k2", k2, 0.);
@@ -77,6 +79,8 @@ namespace camera {
             distCoeffs_.at<double>(2,0) = p1;
             distCoeffs_.at<double>(3,0) = p2;
             distCoeffs_.at<double>(4,0) = k3;
+            // 打印畸变系数
+            std::cout << "distCoeffs_: " << distCoeffs_ << std::endl;
         }
 
         uint32_t sdk_v = MV_CC_GetSDKVersion();
