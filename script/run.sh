@@ -8,7 +8,7 @@ cd $SCRIPT_DIR/../../../
 # 转到catkin工作空间
 
 # 执行catkin_make并检查返回值
-if catkin_make -j16; then
+if catkin_make -j2 -DCATKIN_WHITELIST_PACKAGES="hikrobot_camera"; then
     echo "编译成功，继续执行..."
     source devel/setup.bash
 
