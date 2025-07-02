@@ -1,4 +1,7 @@
 <launch>
+    <!-- 相机内参 -->
+    <rosparam file="$(find hikrobot_camera)/config/calibration.yaml" command="load" />
+    <!-- hikrobot mvs camera 参数 -->
     <rosparam file="$(find hikrobot_camera)/config/camera-outdoor.yaml" command="load" />
     <node pkg="hikrobot_camera" type="hikrobot_camera" name="hikrobot_camera" respawn="true" output="screen" />
     <!-- 
