@@ -7,6 +7,16 @@
 #include "MvErrorDefine.h"
 #include "CameraParams.h"
 #include "MvCameraControl.h"
+#include <fcntl.h>
+#include <sys/ipc.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+
+struct time_stamp {
+int64_t high;
+int64_t low;
+};
+time_stamp *pointt;
 
 namespace camera
 {
@@ -127,7 +137,7 @@ namespace camera
         node.param("Offset_x", Offset_x, 0);
         node.param("Offset_y", Offset_y, 0);
         node.param("TriggerMode", TriggerMode, 1);
-        node.param("TriggerSource", TriggerSource, 7);
+        node.param("TriggerSource", TriggerSource, 2);
         node.param("LineSelector", LineSelector, 1);
 
         node.param("downsample", downsample, 2);
@@ -160,6 +170,13 @@ namespace camera
             // 打印畸变系数
             std::cout << "distCoeffs_: " << distCoeffs_ << std::endl;
         }
+
+        const char *user_name = getlogin();
+        std::string path_for_time_stamp = "/home/" + std::string(user_name) + "/timeshare";
+        const char *shared_file_name = path_for_time_stamp.c_str();
+        int fd = open(shared_file_name, O_RDWR);
+        pointt = (time_stamp *)mmap(NULL, sizeof(time_stamp), PROT_READ | PROT_WRITE,
+                                    MAP_SHARED, fd, 0);
 
         //********** 初始化SDK ********************************/
         // nRet = MV_CC_Initialize();
@@ -225,9 +242,9 @@ namespace camera
             this->set(CAP_PROP_GAMMA, Gamma);
         this->set(CAP_PROP_GAINAUTO, GainAuto);
 
-        // this->set(CAP_PROP_TRIGGER_MODE, TriggerMode);
-        // this->set(CAP_PROP_TRIGGER_SOURCE, TriggerSource);
-        // this->set(CAP_PROP_LINE_SELECTOR, LineSelector);
+        this->set(CAP_PROP_TRIGGER_MODE, TriggerMode);
+        this->set(CAP_PROP_TRIGGER_SOURCE, TriggerSource);
+        this->set(CAP_PROP_LINE_SELECTOR, LineSelector);
 
         // MV_CC_SetBoolValue(handle, "DigitalShiftEnable", true);
         // float fValue = 20.0000;
@@ -298,8 +315,8 @@ namespace camera
         
 
         //软件触发
-        // ********** 触发模式 **********/
-        nRet = MV_CC_SetEnumValue(handle, "TriggerMode", 1);
+        // ********** frame **********/
+        nRet = MV_CC_SetEnumValue(handle, "TriggerMode", 0);
         if (MV_OK == nRet)
         {
             printf("set TriggerMode OK!\n");
@@ -307,15 +324,6 @@ namespace camera
         else
         {
             printf("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet);
-        }
-        nRet = MV_CC_SetEnumValue(handle, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
-        if (MV_OK == nRet)
-        {
-            printf("set TriggerSource OK!\n");
-        }
-        else
-        {
-            printf("Set TriggerSource Failed! nRet = [%x]\n\n", nRet);
         }
 
         //********** 图像格式 **********/
@@ -370,7 +378,10 @@ namespace camera
             perror("pthread_create failed\n");
             exit(-1);
         }
+        //********** frame **********/
+
         nRet = pthread_create(&nThreadID, NULL, HKWorkThread, handle);
+
         if (nRet != 0)
         {
             printf("thread create failed.ret = %d\n", nRet);
@@ -638,7 +649,7 @@ namespace camera
         case CAP_PROP_TRIGGER_MODE:
         {
 
-            nRet = MV_CC_SetEnumValue(handle, "TriggerMode", value); 
+            nRet = MV_CC_SetEnumValue(handle, "TriggerMode", value); //饱和度 默认128 最大255
 
             if (MV_OK == nRet)
             {
@@ -653,7 +664,7 @@ namespace camera
         case CAP_PROP_TRIGGER_SOURCE:
         {
 
-            nRet = MV_CC_SetEnumValue(handle, "TriggerSource", value);
+            nRet = MV_CC_SetEnumValue(handle, "TriggerSource", value); //饱和度 默认128 最大255255
 
             if (MV_OK == nRet)
             {
@@ -668,7 +679,7 @@ namespace camera
         case CAP_PROP_LINE_SELECTOR:
         {
 
-            nRet = MV_CC_SetEnumValue(handle, "LineSelector", value); 
+            nRet = MV_CC_SetEnumValue(handle, "LineSelector", value); //饱和度 默认128 最大255
 
             if (MV_OK == nRet)
             {
@@ -758,7 +769,7 @@ namespace camera
     //^ ********************************** HKWorkThread1 ************************************ //
     void *Camera::HKWorkThread(void *p_handle)
     {
-        double start;
+        // double start;
         int nRet;
         unsigned char *m_pBufForDriver = (unsigned char *)malloc(sizeof(unsigned char) * MAX_IMAGE_DATA_SIZE);
         unsigned char *m_pBufForSaveImage = (unsigned char *)malloc(MAX_IMAGE_DATA_SIZE);
@@ -766,9 +777,11 @@ namespace camera
         MV_CC_PIXEL_CONVERT_PARAM stConvertParam = {0};
         cv::Mat tmp;
         int image_empty_count = 0; //空图帧数
+
+        
         while (ros::ok())
         {
-            start = static_cast<double>(cv::getTickCount());
+            // start = static_cast<double>(cv::getTickCount());
             nRet = MV_CC_GetOneFrameTimeout(p_handle, m_pBufForDriver, MAX_IMAGE_DATA_SIZE, &stImageInfo, 15);
             if (nRet != MV_OK)
             {
@@ -795,13 +808,32 @@ namespace camera
             stConvertParam.enSrcPixelType = stImageInfo.enPixelType;    //ch:输入像素格式 | en:input pixel format                       //! 输入格式 RGB
             MV_CC_ConvertPixelType(p_handle, &stConvertParam);
             pthread_mutex_lock(&mutex);
+            // camera::frame = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, m_pBufForSaveImage).clone(); //tmp.clone();
+            // cv::Mat bayerImage = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC1, m_pBufForSaveImage).clone(); //tmp.clone();
+            // cv::Mat bgrImage(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3);
+            // cv::cvtColor(bayerImage, bgrImage, CV_BayerBG2BGR);
+            // camera::frame = bgrImage.clone();
 
+            // cv::Mat rgbImage = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, m_pBufForSaveImage).clone();
+            // cv::Mat sampleUp;
+            // cv::resize(rgbImage, sampleUp, cv::Size(stImageInfo.nWidth*4, stImageInfo.nHeight*4));
+            // camera::frame = sampleUp.clone();
             camera::frame = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, m_pBufForSaveImage).clone();
-            camera::frametime = ros::Time::now();
-            frame_empty = 0;
+            if(pointt != MAP_FAILED && pointt->low != 0)
+            {
+                // 赋值共享内存中的时间戳给相机帧
+                int64_t b = pointt->low;
+                double time_pc = b / 1000000000.0;
+                camera::frametime = ros::Time(time_pc);
+            }
+            else
+            {
+                camera::frametime = ros::Time::now();
+            }
 
+            frame_empty = 0;
             pthread_mutex_unlock(&mutex);
-            double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
+            // double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
             //*************************************testing img********************************//
             // std::cout << "HK_camera,Time:" << time << "\tFPS:" << 1 / time << std::endl;
             // cv::imshow("HK vision",frame);

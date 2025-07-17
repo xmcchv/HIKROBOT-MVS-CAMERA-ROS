@@ -68,7 +68,6 @@ int main(int argc, char **argv)
 
     //********** 10 Hz        **********/
     ros::Rate loop_rate(100);
-
     while (ros::ok())
     {
 

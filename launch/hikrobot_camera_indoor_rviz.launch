@@ -1,8 +1,10 @@
 <launch>
     <!-- 相机内参 -->
-    <rosparam file="$(find hikmvs_ros_driver)/config/180.yaml" command="load" />
+    <rosparam file="$(find hikmvs_ros_driver)/config/calibration.yaml" command="load" />
+    <!-- <rosparam file="$(find hikmvs_ros_driver)/config/180.yaml" command="load" /> -->
     <!-- hikrobot mvs camera 参数 -->
     <rosparam file="$(find hikmvs_ros_driver)/config/camera-indoor.yaml" command="load" />
+
     <node pkg="hikmvs_ros_driver" type="hikmvs_ros_driver" name="hikmvs_ros_driver" respawn="true" output="screen" />
     <!-- 
     pkg指出ROS应该运行哪个pkg

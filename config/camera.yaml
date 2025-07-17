@@ -1,5 +1,5 @@
-width: 3072             #图像宽度
-height: 2048            #图像高度
+width: 1536             #图像宽度
+height: 1024            #图像高度
 Offset_x: 0             #X方向偏置
 Offset_y: 0             #Y方向偏置
 

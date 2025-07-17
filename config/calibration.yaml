@@ -1,6 +1,9 @@
 # height: 3072
 # width: 2048
 
+topic_name: /hikcamera/img_stream
+cam_info_name: /hikcamera/camera_info
+
 CameraMatrix:
   fx: 1307.10595
   fy: 1306.93807
