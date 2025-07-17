@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(hikrobot_camera)
+project(hikmvs_ros_driver)
 
 add_compile_options(-std=c++14)
 

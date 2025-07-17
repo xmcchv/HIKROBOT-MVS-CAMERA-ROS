@@ -1,9 +1,11 @@
 <launch>
     <!-- 相机内参 -->
-    <rosparam file="$(find hikrobot_camera)/config/calibration.yaml" command="load" />
+    <rosparam file="$(find hikmvs_ros_driver)/config/calibration.yaml" command="load" />
     <!-- hikrobot mvs camera 参数 -->
-    <rosparam file="$(find hikrobot_camera)/config/camera-outdoor.yaml" command="load"/>
-    <node pkg="hikrobot_camera" type="hikrobot_camera" name="hikrobot_camera" respawn="true" output="screen" /> 
+    <rosparam file="$(find hikmvs_ros_driver)/config/camera-outdoor.yaml" command="load"/>
+    <!-- 相机ros参数 -->
+    <rosparam file="$(find hikrobot_camera)/config/setup_ros.yaml" command="load"/>
+    <node pkg="hikmvs_ros_driver" type="hikmvs_ros_driver" name="hikmvs_ros_driver" respawn="true" output="screen" /> 
     <!-- 
     pkg指出ROS应该运行哪个pkg
     type是可执行文件的名称

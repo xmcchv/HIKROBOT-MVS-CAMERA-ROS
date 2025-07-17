@@ -127,7 +127,7 @@ namespace camera
         node.param("Offset_x", Offset_x, 0);
         node.param("Offset_y", Offset_y, 0);
         node.param("TriggerMode", TriggerMode, 1);
-        node.param("TriggerSource", TriggerSource, 2);
+        node.param("TriggerSource", TriggerSource, 7);
         node.param("LineSelector", LineSelector, 1);
 
         node.param("downsample", downsample, 2);
@@ -225,14 +225,15 @@ namespace camera
             this->set(CAP_PROP_GAMMA, Gamma);
         this->set(CAP_PROP_GAINAUTO, GainAuto);
 
-        this->set(CAP_PROP_TRIGGER_MODE, TriggerMode);
-        this->set(CAP_PROP_TRIGGER_SOURCE, TriggerSource);
-        this->set(CAP_PROP_LINE_SELECTOR, LineSelector);
+        // this->set(CAP_PROP_TRIGGER_MODE, TriggerMode);
+        // this->set(CAP_PROP_TRIGGER_SOURCE, TriggerSource);
+        // this->set(CAP_PROP_LINE_SELECTOR, LineSelector);
 
         // MV_CC_SetBoolValue(handle, "DigitalShiftEnable", true);
         // float fValue = 20.0000;
         // MV_CC_SetFloatValue(handle, "DigitalShift", fValue);
 
+        // 水平下采样
         nRet = MV_CC_SetEnumValue(handle, "DecimationHorizontal", downsample);
         if (MV_OK == nRet)
         {
@@ -274,9 +275,31 @@ namespace camera
         this->set(CAP_PROP_SATURATION_ENABLE, SaturationEnable);
         if (SaturationEnable)
             this->set(CAP_PROP_SATURATION, Saturation);
+
+        //************  ptp从机  ***********/
+        nRet = MV_CC_SetBoolValue(handle, "GevIEEE1588SlaveOnly", true);
+        if (MV_OK == nRet)
+        {
+            printf("set GevIEEE1588SlaveOnly OK! value=%f\n", 1.0);
+        }
+        else
+        {
+            printf("Set GevIEEE1588SlaveOnly Failed! nRet = [%x]\n\n", nRet);
+        }
+        nRet = MV_CC_SetBoolValue(handle, "GevIEEE1588", true);
+        if (MV_OK == nRet)
+        {
+            printf("set GevIEEE1588 OK! value=%f\n", 1.0);
+        }
+        else
+        {
+            printf("Set GevIEEE1588 Failed! nRet = [%x]\n\n", nRet);
+        }
+        
+
         //软件触发
-        // ********** frame **********/
-        nRet = MV_CC_SetEnumValue(handle, "TriggerMode", 0);
+        // ********** 触发模式 **********/
+        nRet = MV_CC_SetEnumValue(handle, "TriggerMode", 1);
         if (MV_OK == nRet)
         {
             printf("set TriggerMode OK!\n");
@@ -284,6 +307,15 @@ namespace camera
         else
         {
             printf("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet);
+        }
+        nRet = MV_CC_SetEnumValue(handle, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
+        if (MV_OK == nRet)
+        {
+            printf("set TriggerSource OK!\n");
+        }
+        else
+        {
+            printf("Set TriggerSource Failed! nRet = [%x]\n\n", nRet);
         }
 
         //********** 图像格式 **********/
@@ -313,7 +345,6 @@ namespace camera
         }
         MVCC_ENUMVALUE t = {0};
         //********** frame **********/
-
         nRet = MV_CC_GetEnumValue(handle, "PixelFormat", &t);
         if (MV_OK == nRet)
         {
@@ -339,10 +370,7 @@ namespace camera
             perror("pthread_create failed\n");
             exit(-1);
         }
-        //********** frame **********/
-
         nRet = pthread_create(&nThreadID, NULL, HKWorkThread, handle);
-
         if (nRet != 0)
         {
             printf("thread create failed.ret = %d\n", nRet);
@@ -610,7 +638,7 @@ namespace camera
         case CAP_PROP_TRIGGER_MODE:
         {
 
-            nRet = MV_CC_SetEnumValue(handle, "TriggerMode", value); //饱和度 默认128 最大255
+            nRet = MV_CC_SetEnumValue(handle, "TriggerMode", value); 
 
             if (MV_OK == nRet)
             {
@@ -625,7 +653,7 @@ namespace camera
         case CAP_PROP_TRIGGER_SOURCE:
         {
 
-            nRet = MV_CC_SetEnumValue(handle, "TriggerSource", value); //饱和度 默认128 最大255255
+            nRet = MV_CC_SetEnumValue(handle, "TriggerSource", value);
 
             if (MV_OK == nRet)
             {
@@ -640,7 +668,7 @@ namespace camera
         case CAP_PROP_LINE_SELECTOR:
         {
 
-            nRet = MV_CC_SetEnumValue(handle, "LineSelector", value); //饱和度 默认128 最大255
+            nRet = MV_CC_SetEnumValue(handle, "LineSelector", value); 
 
             if (MV_OK == nRet)
             {
@@ -767,20 +795,11 @@ namespace camera
             stConvertParam.enSrcPixelType = stImageInfo.enPixelType;    //ch:输入像素格式 | en:input pixel format                       //! 输入格式 RGB
             MV_CC_ConvertPixelType(p_handle, &stConvertParam);
             pthread_mutex_lock(&mutex);
-            // camera::frame = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, m_pBufForSaveImage).clone(); //tmp.clone();
-            // cv::Mat bayerImage = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC1, m_pBufForSaveImage).clone(); //tmp.clone();
-            // cv::Mat bgrImage(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3);
-            // cv::cvtColor(bayerImage, bgrImage, CV_BayerBG2BGR);
-            // camera::frame = bgrImage.clone();
 
-            // cv::Mat rgbImage = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, m_pBufForSaveImage).clone();
-            // cv::Mat sampleUp;
-            // cv::resize(rgbImage, sampleUp, cv::Size(stImageInfo.nWidth*4, stImageInfo.nHeight*4));
-            // camera::frame = sampleUp.clone();
             camera::frame = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, m_pBufForSaveImage).clone();
             camera::frametime = ros::Time::now();
-
             frame_empty = 0;
+
             pthread_mutex_unlock(&mutex);
             double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
             //*************************************testing img********************************//

@@ -1,6 +1,6 @@
 <launch>
-    <rosparam file="$(find hikrobot_camera)/config/camera-keni.yaml" command="load"/>
-    <node pkg="hikrobot_camera" type="hikrobot_camera" name="hikrobot_camera" respawn="true" output="screen" /> 
+    <rosparam file="$(find hikmvs_ros_driver)/config/camera-keni.yaml" command="load"/>
+    <node pkg="hikmvs_ros_driver" type="hikmvs_ros_driver" name="hikmvs_ros_driver" respawn="true" output="screen" /> 
     <!-- 
     pkg指出ROS应该运行哪个pkg
     type是可执行文件的名称

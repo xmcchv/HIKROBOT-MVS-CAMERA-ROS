@@ -34,6 +34,8 @@
 | GainAuto | 2 | 亮度的固定增益<br>0: Off<br>1: Once<br>2: Continuous |
 | CalibrateEnable | false | 开启图像畸变校正。非硬件实现，由opencv实现，速度较慢 |
 | TriggerMode | 0 | 触发模式，关闭时会自动推送图像流，开启时需实现软触发或硬触发<br>0: Off<br>1: On |
+| TriggerSoftware | command | 如果触发器源设置为软件，则生成内部触发器 |
+| TriggerSource | 0 | 软触发 Software 7 <br>线路0 Line0 0 <br> 线路2 Line2 2 <br> 计数器0 Counter0 4 <br> 行动1 Action1 22 <br> 任意方式 Anyway 25|
 | ResizeEnable | false | Resize image 通过线性插值（而非裁剪）的方法压缩图片 |
 | DestinationHeight | 640 |  |
 | DestinationWidth | 640 | |

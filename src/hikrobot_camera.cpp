@@ -42,10 +42,12 @@ int main(int argc, char **argv)
     //********** rosnode init **********/
     image_transport::ImageTransport main_cam_image(hikrobot_camera);
 
-    std::string rostopic_name;
-    hikrobot_camera.param<std::string>("topic_name", rostopic_name, "/hikrobot_camera/rgb");
+    std::string rostopic_name, cam_info_name;
+    hikrobot_camera.param<std::string>("topic_name", rostopic_name, "/hikcamera/img_stream");
+    hikrobot_camera.param<std::string>("cam_info_name", cam_info_name, "/hikcamera/camera_info");
+
     image_transport::Publisher image_pub = main_cam_image.advertise(rostopic_name, 1000);
-    ros::Publisher camera_info_pub = hikrobot_camera.advertise<sensor_msgs::CameraInfo>("/hikrobot_camera/camera_info", 1000);
+    ros::Publisher camera_info_pub = hikrobot_camera.advertise<sensor_msgs::CameraInfo>(cam_info_name, 1000);
 
     sensor_msgs::Image image_msg;
     sensor_msgs::CameraInfo camera_info_msg;
@@ -86,8 +88,8 @@ int main(int argc, char **argv)
         cv_ptr->image = src;
 #endif
         image_msg = *(cv_ptr->toImageMsg());
-        // image_msg.header.stamp = srctime;  // ros发出的时间不是快门时间
-        image_msg.header.stamp = ros::Time::now();  // ros发出的时间不是快门时间
+        image_msg.header.stamp = srctime;  // ros发出的时间不是快门时间
+        // image_msg.header.stamp = ros::Time::now();  // ros发出的时间不是快门时间
         image_msg.header.frame_id = "hikrobot_camera";
         
         image_pub.publish(image_msg);

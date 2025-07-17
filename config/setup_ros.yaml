@@ -1,0 +1,4 @@
+# setup ros topic yaml
+
+topic_name: /hikcamera/img_stream
+cam_info_name: /hikcamera/camera_info

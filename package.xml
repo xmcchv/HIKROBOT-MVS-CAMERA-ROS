@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>hikrobot_camera</name>
+  <name>hikmvs_ros_driver</name>
   <version>0.0.0</version>
-  <description>The hikrobot_camera package</description>
+  <description>The hikmvs_ros_driver package</description>
   <maintainer email="savoki1024@gmail.com">zyw</maintainer>
   <license>TODO</license>
   <!-- The buildtool_depend -->
