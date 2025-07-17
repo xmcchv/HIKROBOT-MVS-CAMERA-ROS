@@ -17,7 +17,7 @@ int64_t high;
 int64_t low;
 };
 time_stamp *pointt;
-
+bool b_Exit = false;
 namespace camera
 {
 //********** define ************************************/
@@ -25,6 +25,7 @@ namespace camera
     //********** frame ************************************/
     cv::Mat frame;
     ros::Time frametime;
+    ros::Time refframetime;
     int64_t referinterval;
     //********** frame_empty ******************************/
     bool frame_empty = 0;
@@ -327,21 +328,29 @@ namespace camera
         nRet = MV_CC_SetEnumValue(handle, "TriggerMode", TriggerMode);
         if (MV_OK == nRet)
         {
-            printf("set TriggerMode OK!\n");
+            printf("set TriggerMode OK! value=%f\n", (float)TriggerMode);
         }
         else
         {
             printf("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet);
         }
-        nRet = MV_CC_SetEnumValue(handle, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
+        nRet = MV_CC_SetEnumValue(handle, "TriggerSource", TriggerSource);
         if (MV_OK == nRet)
         {
-            printf("set TriggerSource OK!\n");
+            printf("set TriggerSource OK! value=%f\n", (float)TriggerSource);
         }
         else
         {
             printf("MV_CC_SetTriggerSource fail! nRet [%x]\n", nRet);
         }
+
+        nRet = MV_CC_SetImageNodeNum(handle, 1);
+        if (MV_OK != nRet)
+        {
+            printf("MV_CC_SetImageNodeNum fail! nRet [%x]\n", nRet);
+        }
+        nRet = MV_CC_SetGrabStrategy(handle, MV_GrabStrategy_LatestImagesOnly);
+
         // Register an image grabbing callback
         // nRet = MV_CC_RegisterImageCallBackEx(handle, ImageCallBackEx, handle);
         // if (MV_OK == nRet)
@@ -776,7 +785,7 @@ namespace camera
     {
 
         pthread_mutex_lock(&mutex);
-        time = frametime;
+        time = camera::frametime;
         if (frame_empty)
         {
             image = cv::Mat();
@@ -867,8 +876,10 @@ namespace camera
         // return 0;
 
         ros::Time grabstarttime, grabendtime;
-        // int64_t grabtime;
-        double delay = 0;
+        int64_t grabtime;
+        int64_t transfertime;
+        int64_t delay = 0;
+        struct timespec ts;
         int nRet = MV_OK;
         MV_FRAME_OUT stImageInfo = {0};
         MV_FRAME_OUT_INFO_EX stImageInfoEx = {0};
@@ -876,7 +887,8 @@ namespace camera
         memset(&stImageInfo, 0, sizeof(MV_FRAME_OUT));
         unsigned char *m_pBufForSaveImage = (unsigned char *)malloc(MAX_IMAGE_DATA_SIZE);
 
-        while(true){
+        size_t failcount = 0;
+        while(!b_Exit){
             // 抓图
             grabstarttime = ros::Time::now();
             
@@ -884,6 +896,11 @@ namespace camera
             if(MV_OK != nRet)
             {
                 printf("failed in TriggerSoftware[%x]\n", nRet);
+                if(++failcount > 10){
+                    printf("much wrong times, exit!");
+                    break;
+                }
+                continue;
             }
             nRet = MV_CC_GetImageBuffer(p_handle, &stImageInfo, 1000);
             if (nRet == MV_OK)
@@ -905,41 +922,64 @@ namespace camera
                 pthread_mutex_lock(&mutex);
 
                 camera::frame = cv::Mat(stImageInfoEx.nHeight, stImageInfoEx.nWidth, CV_8UC3, m_pBufForSaveImage).clone();
-                if(pointt != MAP_FAILED && pointt->low != 0)
-                {
-                    // 赋值共享内存中的时间戳给相机帧
-                    int64_t b = pointt->low;
-                    double time_pc = b / 1000000000.0;
-                    camera::frametime = ros::Time(time_pc);
-                }
-                else
-                {
-                    camera::frametime = ros::Time::now();
-                }
-
+                camera::frametime = ros::Time::now();
+                // if(pointt != MAP_FAILED && pointt->low != 0)
+                // {
+                //     // 赋值共享内存中的时间戳给相机帧
+                //     int64_t b = pointt->low;
+                //     double time_pc = b / 1000000000.0;
+                //     camera::frametime = ros::Time(time_pc);
+                // }
+                // else
+                // {
+                //     camera::frametime = ros::Time::now();
+                // }
+                frame_empty = 0;
                 pthread_mutex_unlock(&mutex);
 
                 MV_CC_FreeImageBuffer(p_handle, &stImageInfo);
-                free(m_pBufForSaveImage);
             }
             else
             {
                 printf("Get One Frame failed![%x]\n", nRet);
             }
-
+            
             grabendtime = ros::Time::now();
+
+            if(pointt != MAP_FAILED && pointt->low != 0)
+            {
+                // 赋值共享内存中的时间戳给相机帧
+                int64_t b = pointt->low;
+                double time_pc = b / 1000000000.0;
+                camera::refframetime = ros::Time(time_pc);
+            }
+            else
+            {
+                camera::refframetime = ros::Time::now();
+            }
             // 计算下一次延时sleep时间
             // grabtime = (grabendtime - grabstarttime).toNSec();
-            delay = (camera::referinterval - grabendtime.toNSec() + camera::frametime.toNSec()) / 1000.0;
+            // transfertime = (grabstarttime - camera::refframetime).toNSec();
+            // std::cout << "grabtime: "<< grabtime/1000000.0<<"ms transfertime: "<< transfertime/1000000.0<<"ms"<<std::endl;
+            // // if(transfertime > 0){
+            // //     delay = 2*camera::referinterval - transfertime - 2*grabtime;
+            // // }else{
+            // //     delay = camera::referinterval - grabendtime.toNSec() + camera::refframetime.toNSec();
+            // // }
+            // delay = camera::referinterval - grabtime - transfertime;
+            // // delay = camera::referinterval - grabendtime.toNSec() + camera::refframetime.toNSec();
 
-            // 睡眠等待，对应下一次共享时间
-            if(delay > 0)
-            {
-                usleep(delay);
-            }
+            // std::cout<< "lidar time: "<< camera::refframetime << " frametime: "<< grabendtime << " delay: "<< delay/1000000.0 <<"ms " <<camera::referinterval<<std::endl;
+            // // 睡眠等待，对应下一次共享时间
+            // if(delay > 0)
+            // {
+            //     ts.tv_sec = delay / 1000000000;
+            //     ts.tv_nsec = delay % 1000000000;
+            //     nanosleep(&ts, NULL);
+            // }
 
         }
-        
+        free(m_pBufForSaveImage);
         return 0;
     }
 

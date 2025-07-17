@@ -39,7 +39,7 @@ if catkin_make -j2 -DCATKIN_WHITELIST_PACKAGES="hikmvs_ros_driver"; then
         roslaunch hikmvs_ros_driver test_two_camera_rviz.launch
     else
         echo "直接运行..."
-        roslaunch hikmvs_ros_driver hikrobot_camera_indoor.launch
+        roslaunch hikmvs_ros_driver hikrobot_camera_indoor_rviz.launch
     fi
 else
     echo "编译失败，停止执行!"

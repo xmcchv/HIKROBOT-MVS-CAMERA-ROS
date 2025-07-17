@@ -4,7 +4,7 @@
     <!-- hikrobot mvs camera 参数 -->
     <rosparam file="$(find hikmvs_ros_driver)/config/camera-indoor.yaml" command="load"/>
     <!-- 相机ros参数 -->
-    <rosparam file="$(find hikrobot_camera)/config/setup_ros.yaml" command="load"/>
+    <!-- <rosparam file="$(find hikmvs_ros_driver)/config/setup_ros.yaml" command="load"/> -->
     <node pkg="hikmvs_ros_driver" type="hikmvs_ros_driver" name="hikmvs_ros_driver" respawn="true" output="screen" /> 
     <!-- 
     pkg指出ROS应该运行哪个pkg
