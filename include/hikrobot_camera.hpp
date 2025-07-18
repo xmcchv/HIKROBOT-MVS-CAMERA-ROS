@@ -958,25 +958,23 @@ namespace camera
                 camera::refframetime = ros::Time::now();
             }
             // 计算下一次延时sleep时间
-            // grabtime = (grabendtime - grabstarttime).toNSec();
-            // transfertime = (grabstarttime - camera::refframetime).toNSec();
+            grabtime = (grabendtime - grabstarttime).toNSec();
+            transfertime = (grabstarttime - camera::refframetime).toNSec();
             // std::cout << "grabtime: "<< grabtime/1000000.0<<"ms transfertime: "<< transfertime/1000000.0<<"ms"<<std::endl;
-            // // if(transfertime > 0){
-            // //     delay = 2*camera::referinterval - transfertime - 2*grabtime;
-            // // }else{
-            // //     delay = camera::referinterval - grabendtime.toNSec() + camera::refframetime.toNSec();
-            // // }
-            // delay = camera::referinterval - grabtime - transfertime;
-            // // delay = camera::referinterval - grabendtime.toNSec() + camera::refframetime.toNSec();
+            if(transfertime > 0){
+                delay = 2*camera::referinterval - transfertime - 2*grabtime;
+            }else{
+                delay = camera::referinterval - grabendtime.toNSec() + camera::refframetime.toNSec();
+            }
 
             // std::cout<< "lidar time: "<< camera::refframetime << " frametime: "<< grabendtime << " delay: "<< delay/1000000.0 <<"ms " <<camera::referinterval<<std::endl;
-            // // 睡眠等待，对应下一次共享时间
-            // if(delay > 0)
-            // {
-            //     ts.tv_sec = delay / 1000000000;
-            //     ts.tv_nsec = delay % 1000000000;
-            //     nanosleep(&ts, NULL);
-            // }
+            // 睡眠等待，对应下一次共享时间
+            if(delay > 0)
+            {
+                ts.tv_sec = delay / 1000000000;
+                ts.tv_nsec = delay % 1000000000;
+                nanosleep(&ts, NULL);
+            }
 
         }
         free(m_pBufForSaveImage);
