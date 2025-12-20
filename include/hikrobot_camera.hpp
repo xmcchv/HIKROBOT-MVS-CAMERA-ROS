@@ -7,6 +7,16 @@
 #include "MvErrorDefine.h"
 #include "CameraParams.h"
 #include "MvCameraControl.h"
+#include <fcntl.h>
+#include <sys/ipc.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+
+struct time_stamp {
+int64_t high;
+int64_t low;
+};
+time_stamp *pointt;
 
 namespace camera
 {
@@ -15,6 +25,10 @@ namespace camera
     //********** frame ************************************/
     cv::Mat frame;
     ros::Time frametime;
+    ros::Time refframetime;
+    int64_t referinterval;
+    // 退出
+    bool b_Exit = false;
     //********** frame_empty ******************************/
     bool frame_empty = 0;
     //********** mutex ************************************/
@@ -62,6 +76,8 @@ namespace camera
         bool reset();
         //********** 读图10个相机的原始图像 ********************************/
         void ReadImg(cv::Mat &image, ros::Time& time);
+        // void __stdcall ImageCallBackEx(unsigned char * pData, MV_FRAME_OUT_INFO_EX* pFrameInfo, void* pUser);
+        // void grabImage(void *p_handle);
 
         int get_width();
         int get_height();
@@ -95,13 +111,18 @@ namespace camera
         int TriggerMode;
         int TriggerSource;
         int LineSelector;
+        int Brightness;
 
         int downsample;
 
         bool    calibrate_enable_;
         cv::Mat cameraMatrix_;  // 相机内参
         cv::Mat distCoeffs_;     // 相机畸变校正参数
+        std::string serial;
 
+        int referFPS;
+        std::string ReferTopic;
+        bool g_bIsGetImage = true;
     };
     //^ *********************************************************************************** //
 
@@ -129,9 +150,14 @@ namespace camera
         node.param("TriggerMode", TriggerMode, 1);
         node.param("TriggerSource", TriggerSource, 7);
         node.param("LineSelector", LineSelector, 1);
-
         node.param("downsample", downsample, 2);
-        
+        node.param("serial", serial, std::string(""));
+        node.param("Brightness", Brightness, 60);
+        node.param("ReferTopic", ReferTopic, std::string("/timeshare"));
+
+        node.param("referFPS", referFPS, 10); 
+        camera::referinterval = 1e9 / referFPS; // 参靠时间间隔 ns
+
         node.param("CalibrateEnable", calibrate_enable_, false);
         if(calibrate_enable_) {
             double fx, fy, cx, cy, k1, k2, p1, p2, k3;
@@ -161,6 +187,13 @@ namespace camera
             std::cout << "distCoeffs_: " << distCoeffs_ << std::endl;
         }
 
+        const char *user_name = getlogin();
+        std::string path_for_time_stamp = "/home/" + std::string(user_name) + ReferTopic;
+        const char *shared_file_name = path_for_time_stamp.c_str();
+        int fd = open(shared_file_name, O_RDWR);
+        pointt = (time_stamp *)mmap(NULL, sizeof(time_stamp), PROT_READ | PROT_WRITE,
+                                    MAP_SHARED, fd, 0);
+
         //********** 初始化SDK ********************************/
         // nRet = MV_CC_Initialize();
         // if (MV_OK != nRet)
@@ -185,13 +218,23 @@ namespace camera
         bool hasdevice = false;
         for (int i = 0; i < stDeviceList.nDeviceNum; i++)
         {
-            printf("[device %d]:\n", i);
             MV_CC_DEVICE_INFO *pDeviceInfo = stDeviceList.pDeviceInfo[i];
             if (NULL == pDeviceInfo)
             {
                 break;
             }
-            PrintDeviceInfo(pDeviceInfo);
+            if (strcmp(serial.c_str(), reinterpret_cast<const char*>(pDeviceInfo->SpecialInfo.stGigEInfo.chSerialNumber)) == 0)
+            {
+                deviceID = i;
+                hasdevice = true;
+                printf("[device %d]:\n", i);
+                PrintDeviceInfo(pDeviceInfo);
+                break;
+            }
+        }
+        if(!hasdevice){
+            printf("can not find device with serial %s\n", serial.c_str());
+            exit(-1);
         }
         //********** 选择设备并创建句柄 *************************/
         nRet = MV_CC_CreateHandle(&handle, stDeviceList.pDeviceInfo[deviceID]);
@@ -298,25 +341,126 @@ namespace camera
         
 
         //软件触发
-        // ********** 触发模式 **********/
-        nRet = MV_CC_SetEnumValue(handle, "TriggerMode", 1);
+        // 设置触发模式为on
+        // set trigger mode as on
+        nRet = MV_CC_SetEnumValue(handle, "TriggerMode", TriggerMode);
         if (MV_OK == nRet)
         {
-            printf("set TriggerMode OK!\n");
+            printf("set TriggerMode OK! value=%f\n", (float)TriggerMode);
         }
         else
         {
             printf("MV_CC_SetTriggerMode fail! nRet [%x]\n", nRet);
         }
-        nRet = MV_CC_SetEnumValue(handle, "TriggerSource", MV_TRIGGER_SOURCE_SOFTWARE);
+        nRet = MV_CC_SetEnumValue(handle, "TriggerSource", TriggerSource);
         if (MV_OK == nRet)
         {
-            printf("set TriggerSource OK!\n");
+            printf("set TriggerSource OK! value=%f\n", (float)TriggerSource);
         }
         else
         {
-            printf("Set TriggerSource Failed! nRet = [%x]\n\n", nRet);
+            printf("MV_CC_SetTriggerSource fail! nRet [%x]\n", nRet);
         }
+
+        nRet = MV_CC_SetImageNodeNum(handle, 8);
+        if (MV_OK != nRet)
+        {
+            printf("MV_CC_SetImageNodeNum fail! nRet [%x]\n", nRet);
+        }
+        nRet = MV_CC_SetGrabStrategy(handle, MV_GrabStrategy_LatestImagesOnly);
+
+        // Brightness
+        nRet = MV_CC_SetIntValue(handle, "Brightness", Brightness); //图像Brightness
+        if (MV_OK == nRet)
+        {
+            printf("set Brightness OK! %d \n", Brightness);
+        }
+        else
+        {
+            printf("Set Brightness Failed! nRet = [%x]\n\n", nRet);
+        }
+
+        // 数字增益使能
+        // Node Name: DigitalShiftEnable
+        // Type: Boolean
+        // Name Space: Standard
+        // Visibility: Expert
+        // Streamable: Yes
+        nRet = MV_CC_SetBoolValue(handle, "DigitalShiftEnable", false);
+        if (MV_OK == nRet)
+        {
+            printf("set DigitalShiftEnable OK! value=%f\n", 1.0);
+        }
+        else
+        {
+            printf("Set DigitalShiftEnable Failed! nRet = [%x]\n\n", nRet);
+        }
+
+        // 黑电平使能
+        // 使能/禁用黑电平调整
+
+        // Node Name: BlackLevelEnable
+        // Type: Boolean
+        // Name Space: Standard
+        // Visibility: Expert
+        // Streamable: Yes
+        nRet = MV_CC_SetBoolValue(handle, "BlackLevelEnable", true);
+        if (MV_OK == nRet)
+        {
+            printf("set BlackLevelEnable OK! value=%f\n", 1.0);
+        }
+        else
+        {
+            printf("Set BlackLevelEnable Failed! nRet = [%x]\n\n", nRet);
+        }
+
+        // 自动白平衡
+        // 自动白平衡是对应手动白平衡的“自动”功能
+
+        // Node Name: BalanceWhiteAuto
+        // Type: Enumeration
+        // Name Space: Standard
+        // Visibility: Expert
+        // Streamable: Yes
+
+        // 关闭
+        // Enum Entry Name: Off
+        // Enum Entry Value: 0
+        // Name Space: Standard
+        // Visibility: Beginner
+
+        // 一次
+        // Enum Entry Name: Once
+        // Enum Entry Value: 2
+        // Name Space: Standard
+        // Visibility: Beginner
+
+        // 连续
+        // Enum Entry Name: Continuous
+        // Enum Entry Value: 1
+        // Name Space: Standard
+        // Visibility: Beginner
+        nRet = MV_CC_SetEnumValue(handle, "BalanceWhiteAuto", 1);
+        if (MV_OK == nRet)
+        {
+            printf("set BalanceWhiteAuto OK! value=%f\n", (float)1);
+        }
+        else
+        {
+            printf("set BalanceWhiteAuto fail! nRet [%x]\n", nRet);
+        } 
+
+
+        // Register an image grabbing callback
+        // nRet = MV_CC_RegisterImageCallBackEx(handle, ImageCallBackEx, handle);
+        // if (MV_OK == nRet)
+        // {
+        //     printf("MV_CC_RegisterImageCallBackEx OK!\n");
+        // }
+        // else
+        // {
+        //     printf("MV_CC_RegisterImageCallBackEx fail! nRet [%x]\n", nRet);
+        // }
 
         //********** 图像格式 **********/
         // 0x01100003:Mono10
@@ -334,7 +478,7 @@ namespace camera
         // 0x0110000e:BayerGB10
         // 0x01100012:BayerGB12
         // 0x010C002C:BayerGB12Packed
-        nRet = MV_CC_SetEnumValue(handle, "PixelFormat", 0x01080008); // BayerRG8
+        nRet = MV_CC_SetEnumValue(handle, "PixelFormat", 0x01080009); // BayerRG8
         if (MV_OK == nRet)
         {
             printf("set PixelFormat OK ! value = BayerRG8\n");
@@ -355,8 +499,6 @@ namespace camera
             printf("get PixelFormat fail! nRet [%x]\n", nRet);
         }
         // 开始取流
-        //********** frame **********/
-
         nRet = MV_CC_StartGrabbing(handle);
         if (MV_OK != nRet)
         {
@@ -370,6 +512,7 @@ namespace camera
             perror("pthread_create failed\n");
             exit(-1);
         }
+        //********** frame **********/
         nRet = pthread_create(&nThreadID, NULL, HKWorkThread, handle);
         if (nRet != 0)
         {
@@ -638,7 +781,7 @@ namespace camera
         case CAP_PROP_TRIGGER_MODE:
         {
 
-            nRet = MV_CC_SetEnumValue(handle, "TriggerMode", value); 
+            nRet = MV_CC_SetEnumValue(handle, "TriggerMode", value); //饱和度 默认128 最大255
 
             if (MV_OK == nRet)
             {
@@ -653,7 +796,7 @@ namespace camera
         case CAP_PROP_TRIGGER_SOURCE:
         {
 
-            nRet = MV_CC_SetEnumValue(handle, "TriggerSource", value);
+            nRet = MV_CC_SetEnumValue(handle, "TriggerSource", value); //饱和度 默认128 最大255255
 
             if (MV_OK == nRet)
             {
@@ -668,7 +811,7 @@ namespace camera
         case CAP_PROP_LINE_SELECTOR:
         {
 
-            nRet = MV_CC_SetEnumValue(handle, "LineSelector", value); 
+            nRet = MV_CC_SetEnumValue(handle, "LineSelector", value); //饱和度 默认128 最大255
 
             if (MV_OK == nRet)
             {
@@ -742,7 +885,7 @@ namespace camera
     {
 
         pthread_mutex_lock(&mutex);
-        time = frametime;
+        time = camera::frametime;
         if (frame_empty)
         {
             image = cv::Mat();
@@ -758,59 +901,130 @@ namespace camera
     //^ ********************************** HKWorkThread1 ************************************ //
     void *Camera::HKWorkThread(void *p_handle)
     {
-        double start;
-        int nRet;
-        unsigned char *m_pBufForDriver = (unsigned char *)malloc(sizeof(unsigned char) * MAX_IMAGE_DATA_SIZE);
-        unsigned char *m_pBufForSaveImage = (unsigned char *)malloc(MAX_IMAGE_DATA_SIZE);
-        MV_FRAME_OUT_INFO_EX stImageInfo = {0};
+        ros::Time grabstarttime, grabendtime;
+        int64_t grabtime;
+        int64_t transfertime;
+        int64_t delay = 0;
+        struct timespec ts;
+        int nRet = MV_OK;
+        MV_FRAME_OUT stImageInfo = {0};
+        MV_FRAME_OUT_INFO_EX stImageInfoEx = {0};
         MV_CC_PIXEL_CONVERT_PARAM stConvertParam = {0};
-        cv::Mat tmp;
-        int image_empty_count = 0; //空图帧数
-        while (ros::ok())
-        {
-            start = static_cast<double>(cv::getTickCount());
-            nRet = MV_CC_GetOneFrameTimeout(p_handle, m_pBufForDriver, MAX_IMAGE_DATA_SIZE, &stImageInfo, 15);
-            if (nRet != MV_OK)
+        memset(&stImageInfo, 0, sizeof(MV_FRAME_OUT));
+        unsigned char *m_pBufForSaveImage = (unsigned char *)malloc(MAX_IMAGE_DATA_SIZE);
+
+        // ros::Time commandtime, getbuffertime, cvmatcopytime, converttime;
+
+        size_t failcount = 0;
+        while(!b_Exit){
+            // 抓图
+            grabstarttime = ros::Time::now();
+            
+            nRet = MV_CC_SetCommandValue(p_handle, "TriggerSoftware");
+            if(MV_OK != nRet)
             {
-                if (++image_empty_count > 100)
-                {
-                    ROS_INFO("The Number of Faild Reading Exceed The Set Value!\n");
-                    exit(-1);
+                printf("failed in TriggerSoftware[%x]\n", nRet);
+                if(++failcount > 10){
+                    printf("much wrong times, exit!");
+                    b_Exit = true;
+                    break;
                 }
                 continue;
             }
-            image_empty_count = 0; //空图帧数
-            //转换图像格式为BGR8
+            // commandtime = ros::Time::now();
+            nRet = MV_CC_GetImageBuffer(p_handle, &stImageInfo, 1000);
+            // getbuffertime = ros::Time::now();
+            if (nRet == MV_OK)
+            {
+                // printf("GetOneFrame, Width[%d], Height[%d], nFrameNum[%d]\n", 
+                //     stImageInfo.stFrameInfo.nExtendWidth, stImageInfo.stFrameInfo.nExtendHeight, stImageInfo.stFrameInfo.nFrameNum);
 
-            // stConvertParam.nWidth = 3072;                               //ch:图像宽 | en:image width
-            // stConvertParam.nHeight = 2048;                              //ch:图像高 | en:image height
+                stImageInfoEx = stImageInfo.stFrameInfo;
+                //转换图像格式为BGR8
+                stConvertParam.nWidth = stImageInfoEx.nWidth;                               //ch:图像宽 | en:image width
+                stConvertParam.nHeight = stImageInfoEx.nHeight;                              //ch:图像高 | en:image height
+                stConvertParam.pSrcData = stImageInfo.pBufAddr;                  //ch:输入数据缓存 | en:input data buffer
+                stConvertParam.nSrcDataLen = MAX_IMAGE_DATA_SIZE;           //ch:输入数据大小 | en:input data size
+                stConvertParam.enDstPixelType = PixelType_Gvsp_BGR8_Packed; //ch:输出像素格式 | en:output pixel format                      //! 输出格式 RGB
+                stConvertParam.pDstBuffer = m_pBufForSaveImage;             //ch:输出数据缓存 | en:output data buffer
+                stConvertParam.nDstBufferSize = MAX_IMAGE_DATA_SIZE;        //ch:输出缓存大小 | en:output buffer size
+                stConvertParam.enSrcPixelType = stImageInfoEx.enPixelType;    //ch:输入像素格式 | en:input pixel format                       //! 输入格式 RGB
+                MV_CC_ConvertPixelType(p_handle, &stConvertParam);
 
-            stConvertParam.nWidth = stImageInfo.nWidth;                               //ch:图像宽 | en:image width
-            stConvertParam.nHeight = stImageInfo.nHeight;                              //ch:图像高 | en:image height
-            stConvertParam.pSrcData = m_pBufForDriver;                  //ch:输入数据缓存 | en:input data buffer
-            stConvertParam.nSrcDataLen = MAX_IMAGE_DATA_SIZE;           //ch:输入数据大小 | en:input data size
-            stConvertParam.enDstPixelType = PixelType_Gvsp_BGR8_Packed; //ch:输出像素格式 | en:output pixel format                      //! 输出格式 RGB
-            stConvertParam.pDstBuffer = m_pBufForSaveImage;             //ch:输出数据缓存 | en:output data buffer
-            stConvertParam.nDstBufferSize = MAX_IMAGE_DATA_SIZE;        //ch:输出缓存大小 | en:output buffer size
-            stConvertParam.enSrcPixelType = stImageInfo.enPixelType;    //ch:输入像素格式 | en:input pixel format                       //! 输入格式 RGB
-            MV_CC_ConvertPixelType(p_handle, &stConvertParam);
-            pthread_mutex_lock(&mutex);
+                // converttime = ros::Time::now();
 
-            camera::frame = cv::Mat(stImageInfo.nHeight, stImageInfo.nWidth, CV_8UC3, m_pBufForSaveImage).clone();
-            camera::frametime = ros::Time::now();
-            frame_empty = 0;
+                pthread_mutex_lock(&mutex);
 
-            pthread_mutex_unlock(&mutex);
-            double time = ((double)cv::getTickCount() - start) / cv::getTickFrequency();
-            //*************************************testing img********************************//
-            // std::cout << "HK_camera,Time:" << time << "\tFPS:" << 1 / time << std::endl;
-            // cv::imshow("HK vision",frame);
-            // cv::waitKey(1);
+                
+                camera::frame = cv::Mat(stImageInfoEx.nHeight, stImageInfoEx.nWidth, CV_8UC3);
+                memcpy(camera::frame.data, m_pBufForSaveImage, stImageInfoEx.nHeight * stImageInfoEx.nWidth * 3 * sizeof(uchar));
+                camera::frametime = ros::Time::now();
+
+                // cvmatcopytime = ros::Time::now();
+
+                frame_empty = 0;
+
+                pthread_mutex_unlock(&mutex);
+
+                MV_CC_FreeImageBuffer(p_handle, &stImageInfo);
+            }
+            else
+            {
+                printf("Get One Frame failed![%x]\n", nRet);
+                b_Exit = true;
+                ROS_ERROR("Get One Frame failed! break");
+                break;
+            }
+            
+            grabendtime = ros::Time::now();
+            if(pointt != MAP_FAILED && pointt->low != 0)
+            {
+                // 赋值共享内存中的时间戳给相机帧
+                int64_t b = pointt->low;
+                double time_pc = b / 1000000000.0;
+                camera::refframetime = ros::Time(time_pc);
+            }
+            else
+            {
+                camera::refframetime = ros::Time::now();
+            }
+            
+            // // 计算下一次延时sleep时间
+            grabtime = (grabtime + (grabendtime - grabstarttime).toNSec())/2;
+
+            transfertime = (grabendtime - camera::refframetime).toNSec();
+
+            // std::cout<< "commandtime" << (commandtime - grabstarttime).toNSec() /1000000.0<<"ms " <<std::endl;
+            // std::cout<< "getbuffertime" << (getbuffertime - commandtime).toNSec() /1000000.0<<"ms "<< std::endl;
+            // std::cout<< "converttime" << (converttime - getbuffertime).toNSec() /1000000.0<<"ms "<< std::endl;
+
+            // std::cout << "grabtime: "<< grabtime/1000000.0<<"ms transfertime: "<< transfertime/1000000.0<<"ms "<<std::endl;
+
+            delay = camera::referinterval - grabtime - transfertime;
+
+            
+            // int64_t time_error = (camera::refframetime - grabendtime).toNSec();
+            // int64_t next_target_end_time = camera::refframetime.toNSec() + camera::referinterval;
+            // delay = next_target_end_time - ros::Time::now().toNSec() - grabtime;
+            // if (delay < 0) {
+            //     delay = 0;
+            // }
+
+            // std::cout<< "lidar time: "<< camera::refframetime << " frametime: "<< grabendtime << " delay: "<< delay/1000000.0<<"ms " <<grabtime/1000000.0<<"ms " <<std::endl;
+            // 睡眠等待，对应下一次共享时间
+            if(delay > 0)
+            {
+                ts.tv_sec = delay / 1000000000;
+                ts.tv_nsec = delay % 1000000000;
+                nanosleep(&ts, NULL);
+            }
+
         }
-        free(m_pBufForDriver);
         free(m_pBufForSaveImage);
         return 0;
     }
+
+
 
     int Camera::get_width() {return width;}
     int Camera::get_height() {return height;}

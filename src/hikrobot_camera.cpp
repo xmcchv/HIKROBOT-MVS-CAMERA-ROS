@@ -68,8 +68,7 @@ int main(int argc, char **argv)
 
     //********** 10 Hz        **********/
     ros::Rate loop_rate(100);
-
-    while (ros::ok())
+    while (ros::ok() && !camera::b_Exit)
     {
 
         loop_rate.sleep();
@@ -96,5 +95,6 @@ int main(int argc, char **argv)
 
         //*******************************************************************************************************************/
     }
+    camera::b_Exit = true;
     return 0;
 }
