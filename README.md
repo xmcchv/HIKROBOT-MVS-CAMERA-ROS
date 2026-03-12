@@ -3,6 +3,10 @@
 
 使用前请安装[MVS](https://www.hikrobotics.com/cn/machinevision/service/download?module=0)。
 
+## Attention ！
+海康机器人的mvs使用了自己的libusb，安装后不应该export到bashrc中，参考script/run.sh中在编译时临时export
+否则会覆盖系统的libusb，导致pcl链接失败
+
 # config
 
 ## calibration.yaml
